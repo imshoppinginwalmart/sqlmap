@@ -1996,6 +1996,12 @@ def _cleanupEnvironment():
     if hasattr(socket, "_ready"):
         socket._ready.clear()
 
+    if kb.get("http2Client") is not None:
+        with kb.locks.http2Client:
+            if kb.http2Client is not None:
+                kb.http2Client.close()
+                kb.http2Client = None
+
 def _purge():
     """
     Safely removes (purges) sqlmap data directory.
@@ -2154,7 +2160,7 @@ def _setKnowledgeBaseAttributes(flushAll=True):
     kb.lastParserStatus = None
 
     kb.locks = AttribDict()
-    for _ in ("cache", "connError", "count", "handlers", "hint", "identYwaf", "index", "io", "limit", "liveCookies", "log", "socket", "redirect", "request", "value"):
+    for _ in ("cache", "connError", "count", "handlers", "hint", "identYwaf", "index", "io", "limit", "liveCookies", "log", "socket", "redirect", "request", "value", "http2Client"):
         kb.locks[_] = threading.Lock()
 
     kb.matchRatio = None
@@ -2172,6 +2178,7 @@ def _setKnowledgeBaseAttributes(flushAll=True):
     kb.originalPageTime = None
     kb.originalTimeDelay = None
     kb.originalUrls = dict()
+    kb.http2Client = None
 
     # Back-end DBMS underlying operating system fingerprint via banner (-b)
     # parsing

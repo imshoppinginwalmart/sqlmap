@@ -624,9 +624,28 @@ class Connect(object):
                         raise SqlmapMissingDependence("outdated version of httpx detected (%s<%s)" % (httpx.__version__, MIN_HTTPX_VERSION))
 
                     try:
-                        proxy_mounts = dict(("%s://" % key, httpx.HTTPTransport(proxy="%s%s" % ("http://" if "://" not in kb.proxies[key] else "", kb.proxies[key]))) for key in kb.proxies) if kb.proxies else None
-                        with httpx.Client(verify=False, http2=True, timeout=timeout, follow_redirects=True, cookies=conf.cj, mounts=proxy_mounts) as client:
-                            conn = client.request(method or (HTTPMETHOD.POST if post is not None else HTTPMETHOD.GET), url, headers=headers, data=post)
+                        with kb.locks.http2Client:
+                            if kb.http2Client is None or kb.http2Client.is_closed:
+                                proxy_mounts = dict(
+                                    ("%s://" % key, httpx.HTTPTransport(proxy="%s%s" % ("http://" if "://" not in kb.proxies[key] else "", kb.proxies[key])))
+                                    for key in kb.proxies
+                                ) if kb.proxies else None
+                                kb.http2Client = httpx.Client(
+                                    verify=False,
+                                    http2=True,
+                                    timeout=timeout,
+                                    follow_redirects=True,
+                                    cookies=conf.cj,
+                                    mounts=proxy_mounts,
+                                )
+                            client = kb.http2Client
+
+                        conn = client.request(
+                            method or (HTTPMETHOD.POST if post is not None else HTTPMETHOD.GET),
+                            url,
+                            headers=headers,
+                            data=post,
+                        )
                     except (httpx.HTTPError, httpx.InvalidURL, httpx.CookieConflict, httpx.StreamError) as ex:
                         raise _http_client.HTTPException(getSafeExString(ex))
                     else:
